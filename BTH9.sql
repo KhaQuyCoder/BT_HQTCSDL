@@ -6,33 +6,37 @@
 alter proc cau_a	
 	@date date
 as
-	select * from TranDau
-	where Ngay = @date
-	order by MaTD desc , SanDau asc
+	select TranDau.MaTD, TrongTai, db1.TenDB as db1, db2.TenDB as db2, Ngay 
+	from TranDau inner join DoiBong  as db1 on TranDau.MaDB1 = db1.MaDB
+				 inner join DoiBong as db2 on TranDau.MaDB2	 = db2.MaDB
+	order by TranDau.MaTD asc
+cau_a '2023-10-19'
 
-cau_a '2019-09-12'
+
 
 -- HAM
-create function cau_a_ham(@date date)
+create function cau_a_ham(@ngay date)
 returns table
 as
-return (select * from TranDau
-		where Ngay = @date
-		order by MaTD asc , SanDau asc )
+return (select TranDau.MaTD, TrongTai, db1.TenDB as db1, db2.TenDB as db2, Ngay
+		from TranDau inner join DoiBong as db1 on TranDau.MaDB1 = db1.MaDB
+				  inner join DoiBong as db2 on TranDau.MaDB2 = db2.MaDB
+		where TranDau.Ngay = @ngay)
 
-
-select * from dbo.cau_a_ham(2019-09-12)
-
+select * from dbo.cau_a_ham('2023-10-19')
+order by MaTD asc
 --Viết thủ tục/ hàm với tham số truyền vào là tên A, thủ tục/hàm dùng để lấy ra danh sách
 -- các cầu thủ có tên tương tự với tên A truyền vào này.
 
 -- THU TUC
-create proc cau_b
+alter proc cau_b
 	@name varchar(50)
 as
-	select * from CauThu
+	select CauThu.MaCT, TenCT,MaTD,SoTrai
+	from CauThu 
+	join ThamGia on CauThu.MaCT = ThamGia.MaCT
 	where TenCT like N'% '+@name+''
-cau_b Son
+cau_b A
 
 -- HAM
 create function cau_b_ham(@name varchar(50))
@@ -88,15 +92,14 @@ select * from dbo.cau_d_ham()
 -- chủ nhà) đã thi đấu trong các ngày từ ngay1 đến ngay2.
 
 -- THU TUC
-alter proc cau_e
+create proc cau_e
 	@ngay1 date, @ngay2 date
 as
-	select DoiBong.MaDB 
-	from DoiBong inner join TranDau  on DoiBong.MaDB = TranDau.MaDB1
-				 inner join TranDau as db2 on  DoiBong.MaDB = TranDau.MaDB2 
-	where Ngay >= @ngay1 and Ngay <= @ngay2
-
-cau_e '2019-9-12', '2020-9-12'
+	select DoiBong.MaDB, count(TranDau.MaTD) as soTranDaDa
+	from TranDau inner join DoiBong  on TranDau.MaDB1 = DoiBong.MaDB
+	where TranDau.Ngay between @ngay1 and @ngay2
+	group by DoiBong.MaDB
+cau_e '2023-10-20', '2023-10-24'
 
 
 --Viết thủ tục dùng để thêm mới 1 dòng dữ liệu vào bảng đội bóng, bảng cầu thủ, bảng
@@ -115,6 +118,7 @@ cau_f 8,VietNam, 8
 --Viết thủ tục dùng để cập nhật dữ liệu của một cầu thủ, với thông tin cầu thủ là tham số
 -- truyền vào và tham số @ketqua sẽ trả về chuỗi rỗng nếu cập nhật cầu thủ thành công,
 -- ngược lại tham số này trả về chuỗi cho biết lý do không cập nhật được.
+
 
 create proc cau_g
 	@mact varchar(50), 
@@ -152,12 +156,12 @@ create function cau_h(@nam int)
 returns int
 as
 begin
-	return (select COUNT(TrongTai) as sl
+	return (select COUNT(distinct TrongTai) as sl
 			from TranDau
 			where YEAR(Ngay) = @nam )
 end
 
-select dbo.cau_h(2019) as sl
+select dbo.cau_h(2023) as sl
 
 --Viết thủ tục vào tham số truyền vào là mã cầu thủ, thủ tục dùng để xóa cầu thủ này.
 --(Gợi ý: nếu cầu thủ này đã từng tham gia ít nhất một trận đấu thì phải xóa dữ liệu ở
@@ -165,7 +169,7 @@ select dbo.cau_h(2019) as sl
 alter proc cau_i
 	@mact varchar(50)
 as
-	if(exists(select * from ThamGia where MaCT = @mact  ))
+	if(exists(select * from ThamGia where MaCT = @mact))
 		begin
 			delete from ThamGia
 			where MaCT = @mact
@@ -180,16 +184,17 @@ cau_i S2
 --Viết hàm với tham số truyền vào là macauthu, hàm dùng để lấy ra tổng bàn thắng của
 -- cầu thủ này.
 
-create function cau_j(@mact varchar(50))
+alter function cau_j(@mact varchar(50))
 returns int
 as
 begin
-	return (select sum(SoTran)
-			from ThamGia
-			where MaCT = @mact)
+	return (select sum(SoTrai) as st
+			from CauThu join ThamGia on CauThu.MaCT = ThamGia.MaCT
+			where CauThu.MaCT = @mact
+			group by CauThu.MaCT)
 end
 
-select dbo.cau_j('S3')
+select dbo.cau_j('AA')
 
 --Viết một hàm trả về tổng bàn thắng mà mỗi cầu thủ ghi được trong tất cả các trận.
 create function cau_k()
